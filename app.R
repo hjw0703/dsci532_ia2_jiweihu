@@ -1,54 +1,67 @@
 library(dash)
-library(dashCoreComponents)
-library(dashHtmlComponents)
 library(dashBootstrapComponents)
 library(ggplot2)
 library(plotly)
+library(purrr)
 
 app <- Dash$new(external_stylesheets = dbcThemes$BOOTSTRAP)
+data_df <- read.csv("data/processed_data.csv")
+price_subset <- data.frame(
+    title=c("Total Monthly Cost",
+            "Basic Groceries",
+            "Childcare", 
+            "Entertainment",
+            "Fitness", 
+            "Monthly Rent",
+            "Public Transport",
+            "Shopping",
+            "Utilities") , 
+    feature=c("all",
+              "grocery_for_one_person",
+              "childcare_for_one_child",
+              "entertainment",
+              "fitness",
+              "rent_for_one_person",
+              "transportation_public",
+              "shopping",
+              "utility_bills"))
 
-msleep2 <- readr::read_csv(here::here('data', 'msleep.csv'))
 
 app$layout(
     dbcContainer(
         list(
-            htmlH1('Dashr heroky deployment'),
             dccGraph(id='plot-area'),
-            htmlDiv(id='output-area'),
-            htmlBr(),
-            htmlDiv(id='output-area2'),
-            htmlBr(),
             dccDropdown(
-                id='col-select',
-                options = msleep2 %>% colnames %>% purrr::map(function(col) list(label = col, value = col)),
-                value='bodywt')
+                id='city_name',
+                options = data_df$city %>%
+                    purrr::map(function(col) list(label = col, value = col)), 
+                value='New York',
+                multi=T),
+            dccDropdown(
+                id='cost_subset',
+                options = price_subset$feature %>%
+                    purrr::map(function(col) list(label = col, value = col)), 
+                value='all')
         )
     )
 )
 
 app$callback(
     output('plot-area', 'figure'),
-    list(input('col-select', 'value')),
-    function(xcol) {
-        p <- ggplot(msleep2) +
-            aes(x = !!sym(xcol),
-                y = sleep_total,
-                color = vore,
-                text = name) +
-            geom_point() +
-            scale_x_log10() +
-            ggthemes::scale_color_tableau()
-        ggplotly(p) %>% layout(dragmode = 'select')
-    }
-)
-
-app$callback(
-    list(output('output-area', 'children'),
-         output('output-area2', 'children')),
-    list(input('plot-area', 'selectedData'),
-         input('plot-area', 'hoverData')),
-    function(selected_data, hover_data) {
-        list(toString(selected_data), toString(hover_data))
+    list(input('city_name', 'value'),
+         input('cost_subset', 'value')),
+    function(city_name,cost_subset) {
+        subset <- data_df %>% 
+            filter(city %in% city_name)
+        y_title <- price_subset$title[price_subset$feature == cost_subset]
+        
+        p <- ggplot(subset, aes(x = city,
+                                y = !!sym(cost_subset),
+                                fill = city
+        )) +
+            labs(x = 'City', y = y_title) +
+            geom_col() 
+        ggplotly(p)
     }
 )
 
